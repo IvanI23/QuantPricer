@@ -46,6 +46,10 @@ This project implements a robust, modular C++ Monte Carlo simulation framework f
 
 ---
 
+**Note:** Only the `build_linux/` directory is intentionally kept in the repository to allow the project to run on Render, as it require pre-built binaries for web compatibility.
+
+---
+
 ## Getting Started
 
 ### Prerequisites
