@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantPricerr</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>QuantPricer</h1>
+        </div>
+        <form action="/" method="post">
+            <fieldset>
+                <legend>Market & Option Parameters</legend>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="S0">Initial Stock Price (S0)</label>
+                        <input type="number" step="0.01" id="S0" name="S0" value="{{ inputs.S0 or 100 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="K">Strike Price (K)</label>
+                        <input type="number" step="0.01" id="K" name="K" value="{{ inputs.K or 100 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="T">Time to Maturity (T)</label>
+                        <input type="number" step="0.01" id="T" name="T" value="{{ inputs.T or 1.0 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="r">Risk-free rate (r)</label>
+                        <input type="number" step="0.001" id="r" name="r" value="{{ inputs.r or 0.05 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="sigma">Volatility (σ)</label>
+                        <input type="number" step="0.001" id="sigma" name="sigma" value="{{ inputs.sigma or 0.2 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="paths">Number of Paths</label>
+                        <input type="number" id="paths" name="paths" value="{{ inputs.paths or 100000 }}">
+                    </div>
+                     <div class="form-group">
+                        <label for="steps">Steps per Path</label>
+                        <input type="number" id="steps" name="steps" value="{{ inputs.steps or 365 }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="dividends">Dividends
+                            <span class="help-text" style="font-size:0.9em; color:#666;">(Optional, leave empty if none)</span>
+                        </label>
+                        <input type="text" id="dividends" name="dividends" placeholder="e.g. 30:1.5,90:2.0" value="{{ inputs.dividends}}">
+                    </div>
+                    <div class="form-group">
+                        <label for="variates">Choose Variates</label>
+                        <select id="variates" name="variates">
+                            <option value="none" selected>None</option>
+                            <option value="antithetic">Antithetic</option>
+                            <option value="control">Control Variate</option>
+                        </select>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Option Specification</legend>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="option-type">Exercise Style</label>
+                        <select id="option-type" name="option-type">
+                            <option value="european" {% if inputs['option-type'] == 'european' %}selected{% endif %}>European</option>
+                            <option value="american" {% if inputs['option-type'] == 'american' %}selected{% endif %}>American</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="side">Option Side</label>
+                        <select id="side" name="side">
+                            <option value="call" {% if inputs['side'] == 'call' %}selected{% endif %}>Call</option>
+                            <option value="put" {% if inputs['side'] == 'put' %}selected{% endif %}>Put</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="payoff">Payoff Type</label>
+                        <select id="payoff" name="payoff">
+                            <option value="vanilla" selected>Vanilla</option>
+                            <option value="barrier">Barrier</option>
+                            <option value="asian">Asian</option>
+                            <option value="binary">Binary</option>
+                        </select>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset id="barrier-params" style="display: none;">
+                <legend>Barrier Parameters</legend>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="barrier-type">Barrier Type</label>
+                        <select id="barrier-type" name="barrier-type">
+                            <option value="down-and-out">Down-and-Out</option>
+                            <option value="up-and-out">Up-and-Out</option>
+                            <option value="down-and-in">Down-and-In</option>
+                            <option value="up-and-in">Up-and-In</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="barrier">Barrier Level</label>
+                        <input type="number" step="0.01" id="barrier" name="barrier" value="0">
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset id="binary-params" style="display: none;">
+                <legend>Binary Option Parameters</legend>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="payout">Payout Amount</label>
+                        <input type="number" step="0.01" id="payout" name="payout" value="1.0">
+                    </div>
+                </div>
+            </fieldset>
+            
+            <button type="submit">Calculate Price</button>
+        </form>
+
+        <pre id="log-output"></pre>
+
+        <div class="results" id="results-container" style="display: none;">
+            <h2>Results</h2>
+            <div class="result-grid">
+                <div>
+                    <p><strong>Monte Carlo Price:</strong></p>
+                    <span id="mc-price"></span>
+                </div>
+                <div>
+                    <p><strong>Black-Scholes Price:</strong></p>
+                    <span id="bs-price"></span>
+                </div>
+                 <div>
+                    <p><strong>Difference:</strong></p>
+                    <span id="diff-price"></span>
+                </div>
+            </div>
+
+            <div class="plot-section" id="plot-container" style="display: none;">
+                <h2>Monte Carlo Simulated Paths vs. Black-Scholes</h2>
+                <img id="plot-img" src="" alt="Monte Carlo Simulated Paths" class="plot-img">
+                <figcaption class="plot-caption">This graph shows simulated price paths (blue), the Black-Scholes expected path (dashed), and marks the end results.</figcaption>
+            </div>
+        </div>
+
+        <div class="graph-explanation" id="graph-explanation" style="display: none;">
+            <h2>How to Read the Graph</h2>
+            <ul>
+                <li><strong>Lines:</strong> Each line is a simulated price path for the underlying asset, generated using Monte Carlo simulation. It shows one possible way the price could evolve over time.</li>
+                <li><strong>Blue Dots at the End:</strong> These mark the final price of each simulated path at maturity (the last time step).</li>
+                <li><strong>Black Dashed Line:</strong> This is the <em>Black-Scholes expected path</em>, showing the theoretical average price evolution if the asset grew at the risk-free rate (ignoring volatility).</li>
+                <li><strong>Red Dot at the End of the Dashed Line:</strong> This marks the final value of the Black-Scholes expected path at maturity.</li>
+            </ul>
+            <h3>Meaning</h3>
+            <ul>
+                <li>The <strong>spread of the blue lines</strong> shows the effect of volatility: higher spread means higher uncertainty in the asset's future price.</li>
+                <li>The <strong>dashed line</strong> is a reference for the average, non-random price evolution.</li>
+                <li>The <strong>option price</strong> is calculated by averaging the payoff across all simulated paths.</li>
+            </ul>
+            <p><em>This visualization is to help you understand both the uncertainty in future prices and the expected path for the asset from a sample of 5 paths.</em></p>
+        </div>
+    </div>
+
+<script>
+document.querySelector('form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const logOutput = document.getElementById('log-output');
+    const resultsContainer = document.getElementById('results-container');
+    const plotContainer = document.getElementById('plot-container');
+    const plotImg = document.getElementById('plot-img');
+    const button = this.querySelector('button');
+    const payoffSelect = document.getElementById('payoff');
+    const barrierParams = document.getElementById('barrier-params');
+
+    // Reset UI
+    logOutput.textContent = '';
+    resultsContainer.style.display = 'none';
+    plotContainer.style.display = 'none';
+    logOutput.style.display = 'block';
+    button.disabled = true;
+    button.textContent = 'Calculating...';
+
+    try {
+        const response = await fetch('/run', {
+            method: 'POST',
+            body: new FormData(this)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('RESULTS:::')) {
+                    const jsonData = line.substring('RESULTS:::'.length);
+                    const data = JSON.parse(jsonData);
+                    
+                    document.getElementById('mc-price').textContent = data.results.mc_price;
+                    document.getElementById('bs-price').textContent = data.results.bs_price;
+                    document.getElementById('diff-price').textContent = data.results.diff;
+                    resultsContainer.style.display = 'block';
+
+                    if (data.plot_url) {
+                        plotImg.src = data.plot_url;
+                        plotContainer.style.display = 'block';
+                        const graphExplanation = document.getElementById('graph-explanation');
+                        if (graphExplanation) graphExplanation.style.display = 'block';
+                    }
+                } else if (line.startsWith('ERROR:::')) {
+                    const errorMsg = line.substring('ERROR:::'.length);
+                    logOutput.textContent += `\n--- ERROR ---\n${errorMsg}\n`;
+                    
+                    // Special handling for missing executable
+                    if (errorMsg.includes('Pricer executable not found')) {
+                        logOutput.textContent += '\nThis web interface requires the C++ Monte Carlo pricer to be compiled.\n';
+                        logOutput.textContent += 'Please ensure the application is properly built before using this interface.\n';
+                    }
+                }
+                else if (line.trim()) {
+                    logOutput.textContent += line + '\n';
+                }
+            }
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+    } catch (error) {
+        logOutput.textContent += `\n--- CLIENT-SIDE ERROR ---\n${error.toString()}\n`;
+        logOutput.textContent += '\nPlease check if the server is running and try again.\n';
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Calculate Price';
+    }
+});
+
+document.getElementById('payoff').addEventListener('change', function() {
+    const barrierParams = document.getElementById('barrier-params');
+    const binaryParams = document.getElementById('binary-params');
+    if (this.value === 'barrier') {
+        barrierParams.style.display = 'block';
+        binaryParams.style.display = 'none';
+    } else if (this.value === 'binary') {
+        barrierParams.style.display = 'none';
+        binaryParams.style.display = 'block';
+    } else {
+        barrierParams.style.display = 'none';
+        binaryParams.style.display = 'none';
+    }
+});
+
+// Add logic to enable/disable payoff types based on option type
+function updatePayoffOptions() {
+    const optionType = document.getElementById('option-type').value;
+    const payoff = document.getElementById('payoff');
+    for (let i = 0; i < payoff.options.length; ++i) {
+        const opt = payoff.options[i];
+        if (optionType === 'american' && opt.value !== 'vanilla') {
+            opt.disabled = true;
+            opt.title = 'Only vanilla payoff is available for American options';
+        } else {
+            opt.disabled = false;
+            opt.title = '';
+        }
+    }
+
+    if (optionType === 'american' && payoff.value !== 'vanilla') {
+        payoff.value = 'vanilla';
+    }
+}
+document.getElementById('option-type').addEventListener('change', updatePayoffOptions);
+document.addEventListener('DOMContentLoaded', updatePayoffOptions);
+</script>
+
+</body>
+</html> 
